@@ -35,7 +35,7 @@ func GeneratePopulation(individuals int, genotypeTemplate [][]int) [][]int {
 //Given a population of n individuals, it returns the **indexes** of the new generation from the initial one
 //by organizing n number of tournaments of tournamentSize participants, each tournament won by the
 //participant with the highest fitness, as read in its record in the fitness array
-func TournamentRanking(population [][]int, fitness []float64, minOrMax bool, tournamentSize int) []int {
+func TournamentRanking(population [][]int, fitness []float64, minOrMax bool, tournamentSize int, winnersSize int) []int {
     individuals := len(population)
     if tournamentSize < 2 {
         log.Println("The tournament size is lesser than 2, capping it")
@@ -52,8 +52,8 @@ func TournamentRanking(population [][]int, fitness []float64, minOrMax bool, tou
     } else {
         fitnessMultiplier = 1.
     }
-    winners := make([]int, individuals)
-    for i := 0; i < individuals; i++ {
+    winners := make([]int, winnersSize)
+    for i := 0; i < winnersSize; i++ {
         contenders := r.Perm(individuals)
         winner := contenders[0]
         winnerFitness := fitness[winner]

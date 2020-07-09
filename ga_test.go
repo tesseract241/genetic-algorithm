@@ -15,6 +15,8 @@ const (
     mutationAmplitude   =  10
     tournamentSizeMin   =  2
     tournamentSizeMax   =  populationSize
+    winnersSizeMin      =  1
+    winnersSizeMax      =  populationSize
 )
 
 func TestGeneratePopulation(t *testing.T) {
@@ -54,16 +56,24 @@ func TestTournamentRanking(t *testing.T) {
     }
     sort.Float64s(fitness)
     for i:=tournamentSizeMin;i<=tournamentSizeMax;i++ {
-        winners := TournamentRanking(population, fitness, true, i)
-        for j:= range(winners) {
-            if winners[j] > populationSize - i {
-                t.Errorf("The %d-th to last individual won a tournament of size %d, which should never happen (min fitness)\n", populationSize - winners[j], i)
+        for j:=winnersSizeMin;j<=winnersSizeMax;j++ {
+            winners := TournamentRanking(population, fitness, true, i, j)
+            if len(winners)!=j {
+                t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), j)
             }
-        }
-        winners = TournamentRanking(population, fitness, false, i)
-        for j:= range(winners) {
-            if winners[j] + 1 < i {
-                t.Errorf("The %d-th to last individual won a tournament of size %d, which should never happen (max fitness)\n", winners[j], i)
+            for j:= range(winners) {
+                if winners[j] > populationSize - i {
+                    t.Errorf("The %d-th to last individual won a tournament of size %d, which should never happen (min fitness)\n", populationSize - winners[j], i)
+                }
+            }
+            winners = TournamentRanking(population, fitness, false, i, j)
+            if len(winners)!=j {
+                t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), j)
+            }
+            for j:= range(winners) {
+                if winners[j] + 1 < i {
+                    t.Errorf("The %d-th to last individual won a tournament of size %d, which should never happen (max fitness)\n", winners[j], i)
+                }
             }
         }
     }
