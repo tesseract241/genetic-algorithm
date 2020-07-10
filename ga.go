@@ -11,6 +11,8 @@ func init(){
     r.Seed(time.Now().UnixNano())
 }
 
+//Returns a population of size individuals, each having a genome of the same length as genotypeTemplate, 
+//and minimum and maximum values of each gene taken from genotypeTemplate
 func GeneratePopulation(individuals int, genotypeTemplate [][]int) [][]int {
     if individuals <= 0 {
         log.Fatal("The population needs a positive amount of individuals")
@@ -30,6 +32,46 @@ func GeneratePopulation(individuals int, genotypeTemplate [][]int) [][]int {
         }
     }
     return population
+}
+
+
+func RouletteRanking(population [][]int, fitness []float64, minFitness float64) []int {
+    individuals := len(population)
+    if individuals == 0 {
+        log.Fatal("Requested a RouletteRanking on an empty population\n")
+    }
+    if len(fitness) != individuals {
+        log.Fatalf("The number of fitness values is different from the population size, %d vs %d", len(fitness), individuals)
+    }
+    cumulativeProbabilities := make([]float64, individuals)
+    if minFitness >= 0 {
+        cumulativeProbabilities[0] = fitness[0]
+        for i:=1;i<individuals;i++ {
+            cumulativeProbabilities[i] = cumulativeProbabilities[i-1] + fitness[i]
+        }
+        reciprocal_sum := 1./fitness[individuals-1]
+        for i:= range(fitness) {
+            cumulativeProbabilities[i] *= reciprocal_sum
+        }
+    } else {
+        //For problems in which the fitness must be minimized, the modified fitness = 1/(1 + fitness - minFitness(len(population))
+        //is used.
+        //TODO Check if this can be coded more efficiently by rewriting the sum 1/a + 1/b as (a+b)/(a*b)
+        minFitness/=float64(individuals)
+        cumulativeProbabilities[0] = 1./(1. + fitness[0] - minFitness)
+        for i:=1;i<individuals;i++ {
+            cumulativeProbabilities[i] = cumulativeProbabilities[i-1] + 1./(1. + fitness[i] - minFitness)
+        }
+        reciprocal_sum := 1./cumulativeProbabilities[individuals-1]
+        for i:= range(cumulativeProbabilities) {
+            cumulativeProbabilities[i] *= reciprocal_sum
+        }
+    }
+    winners := make([]int, individuals)
+    for i:= range(winners) {
+        winners[i] = sort.SearchFloat64s(cumulativeProbabilities, r.Float64())
+    }
+    return winners
 }
 
 //Given a population of n individuals, it returns the **indexes** of the new generation from the initial one
