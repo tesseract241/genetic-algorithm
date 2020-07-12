@@ -58,17 +58,24 @@ func TestRouletteRanking(t *testing.T) {
     for i:= range(fitness) {
         fitness[i] = r.Float64()
     }
-    winners := RouletteRanking(population, fitness, -5)
-    if len(winners)!=populationSize {
-        t.Errorf("The number of winners is different from the population size, respectively %d and %d (max fitness)\n", len(winners), populationSize)
-    }
-    winners = RouletteRanking(population, fitness, fitness[0])
-    if len(winners)!=populationSize {
-        t.Errorf("The number of winners is different from the population size, respectively %d and %d (min fitness)\n", len(winners), populationSize)
-    }
-    for i:=range(winners) {
-        if winners[i]<0 || winners[i]>=populationSize {
-            t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+    for i:=winnersSizeMin;i<winnersSizeMax;i++ {
+        winners := RouletteRanking(population, fitness, -5, i)
+        if len(winners)!=i {
+            t.Errorf("The number of winners is different from that requested, respectively %d and %d (max fitness)\n", len(winners), i)
+        }
+        for i:=range(winners) {
+            if winners[i]<0 || winners[i]>=populationSize {
+                t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+            }
+        }
+        winners = RouletteRanking(population, fitness, fitness[0], i)
+        if len(winners)!=i {
+            t.Errorf("The number of winners is different from that requested, respectively %d and %d (max fitness)\n", len(winners), i)
+        }
+        for i:=range(winners) {
+            if winners[i]<0 || winners[i]>=populationSize {
+                t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+            }
         }
     }
 }
