@@ -44,6 +44,35 @@ func TestGeneratePopulation(t *testing.T) {
     }
 }
 
+func TestRouletteRanking(t *testing.T) {
+    log.Println("Testing RouletteRanking")
+    genotypeTemplate := make([][]int, genotypeLength)
+    for i:= range(genotypeTemplate) {
+        genotypeTemplate[i] = make([]int, 2)
+        genotypeTemplate[i][0] = genotypeMin
+        genotypeTemplate[i][1] = genotypeMax
+    }
+    population := GeneratePopulation(populationSize, genotypeTemplate)
+    fitness := make([]float64, populationSize)
+    sort.Float64s(fitness)
+    for i:= range(fitness) {
+        fitness[i] = r.Float64()
+    }
+    winners := RouletteRanking(population, fitness, -5)
+    if len(winners)!=populationSize {
+        t.Errorf("The number of winners is different from the population size, respectively %d and %d (max fitness)\n", len(winners), populationSize)
+    }
+    winners = RouletteRanking(population, fitness, fitness[0])
+    if len(winners)!=populationSize {
+        t.Errorf("The number of winners is different from the population size, respectively %d and %d (min fitness)\n", len(winners), populationSize)
+    }
+    for i:=range(winners) {
+        if winners[i]<0 || winners[i]>=populationSize {
+            t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+        }
+    }
+}
+
 func TestTournamentRanking(t *testing.T) {
     log.Println("Testing TournamentRanking")
     genotypeTemplate := make([][]int, genotypeLength)
@@ -63,6 +92,11 @@ func TestTournamentRanking(t *testing.T) {
             winners := TournamentRanking(population, fitness, true, i, j)
             if len(winners)!=j {
                 t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), j)
+            }
+            for i:=range(winners) {
+                if winners[i]<0 || winners[i]>=populationSize {
+                    t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+                }
             }
             for j:= range(winners) {
                 if winners[j] > populationSize - i {
