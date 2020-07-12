@@ -118,8 +118,8 @@ func TwoPointsCrossover(parent1 []int, parent2 []int) []int {
         log.Fatal("Tried to crossover two individuals with genomes of different length")
     }
     child := make([]int, length)
-    x := r.Intn(length)
-    y := r.Intn(length)
+    x := r.Intn(length + 1)
+    y := r.Intn(length + 1)
     dummy := []int{x, y}
     sort.Ints(dummy)
     min, max := dummy[0], dummy[1]
