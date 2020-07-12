@@ -2,6 +2,7 @@ package genetic_algorithm
 
 import (
     r "math/rand"
+    "log"
     "sort"
     "testing"
 )
@@ -20,6 +21,7 @@ const (
 )
 
 func TestGeneratePopulation(t *testing.T) {
+    log.Println("Testing GeneratePopulation")
     genotypeTemplate := make([][]int, genotypeLength)
     for i:= range(genotypeTemplate) {
         genotypeTemplate[i] = make([]int, 2)
@@ -43,6 +45,7 @@ func TestGeneratePopulation(t *testing.T) {
 }
 
 func TestTournamentRanking(t *testing.T) {
+    log.Println("Testing TournamentRanking")
     genotypeTemplate := make([][]int, genotypeLength)
     for i:= range(genotypeTemplate) {
         genotypeTemplate[i] = make([]int, 2)
@@ -80,6 +83,7 @@ func TestTournamentRanking(t *testing.T) {
 }
 
 func TestTwoPointsCrossover(t *testing.T) {
+    log.Println("Testing TwoPointsCrossover")
     genotypeTemplate := make([][]int, genotypeLength)
     for i:= range(genotypeTemplate) {
         genotypeTemplate[i] = make([]int, 2)
@@ -88,33 +92,34 @@ func TestTwoPointsCrossover(t *testing.T) {
     }
     population := GeneratePopulation(2, genotypeTemplate)
     child := TwoPointsCrossover(population[0], population[1])
-    breakpoint1, breakpoint2 := 0, 0
+    breakpoint1, breakpoint2 := genotypeLength, genotypeLength 
     for i:= range(child) {
         if(child[i]!=population[0][i]) {
             if(child[i]!=population[1][i]) {
                 t.Errorf("Child's %d-th gene, with value %d, doesn't belong to either parent1, with value %d, or parent2, witch value %d\n", i, child[i], population[0][i], population[1][i])
             }
-            breakpoint1 = i+1
+            breakpoint1 = i
             break
         }
-        for i:=breakpoint1;i<genotypeLength;i++ {
-            if(child[i]!=population[1][i]) {
-                if(child[i]!=population[0][i]) {
-                    t.Errorf("Child's %d-th gene, with value %d, doesn't belong to either parent1, with value %d, or parent2, witch value %d\n", i, child[i], population[0][i], population[1][i])
-                }
-            breakpoint2 = i+1
-            break
-            }
-        }
-        for i:=breakpoint2;i<genotypeLength;i++ {
+    }
+    for i:=breakpoint1;i<genotypeLength;i++ {
+        if(child[i]!=population[1][i]) {
             if(child[i]!=population[0][i]) {
-                t.Errorf("Child's %d-th gene, which is in the last section of its genome, should belong to parent1, but they are different values, respectively %d and %d\n", i, child[i], population[0][i])
+                    t.Errorf("Child's %d-th gene, with value %d, doesn't belong to either parent1, with value %d, or parent2, witch value %d\n", i, child[i], population[0][i], population[1][i])
             }
+            breakpoint2 = i
+            break
+        }
+    }
+    for i:=breakpoint2;i<genotypeLength;i++ {
+        if(child[i]!=population[0][i]) {
+            t.Errorf("Child's %d-th gene, which is in the last section of its genome, should belong to parent1, but they are different values, respectively %d and %d (parent2's gene is %d)\nBreakpoints were %d and %d\n", i, child[i], population[0][i], population[1][i], breakpoint1, breakpoint2)
         }
     }
 }
 
 func TestUniformCrossover(t *testing.T) {
+    log.Println("Testing UniformCrossover")
     genotypeTemplate := make([][]int, genotypeLength)
     for i:= range(genotypeTemplate) {
         genotypeTemplate[i] = make([]int, 2)
@@ -131,6 +136,7 @@ func TestUniformCrossover(t *testing.T) {
 }
 
 func TestMutate(t *testing.T) {
+    log.Println("Testing Mutate")
     genotypeTemplate := make([][]int, genotypeLength)
     for i:= range(genotypeTemplate) {
         genotypeTemplate[i] = make([]int, 2)
