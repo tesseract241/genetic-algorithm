@@ -1,6 +1,7 @@
 package genetic_algorithm
 
 import (
+    "math"
     r "math/rand"
     "log"
     "sort"
@@ -75,6 +76,26 @@ func RouletteRanking(population [][]int, fitness []float64, minFitness float64, 
     return winners
 }
 
+//Auxiliary function to calculate the index of each ranked individual
+//for the ranking selection functions
+func calculateRanks(fitness []float64, minOrMax bool) []int {
+    individuals := len(fitness)
+    fitnessOrdered := fitness
+    sort.Float64s(fitnessOrdered)
+    //ranksLooukup stores the index of the ranked individuals in the population array
+    ranksLookup := make([]int, individuals)
+    if minOrMax {
+        for i:= range(ranksLookup) {
+            ranksLookup[i] = individuals - 1 - sort.SearchFloat64s(fitness, fitnessOrdered[i])
+        }
+    } else {
+        for i:= range(ranksLookup) {
+            ranksLookup[i] = sort.SearchFloat64s(fitness, fitnessOrdered[i])
+        }
+    }
+    return ranksLookup
+}
+
 //Picks winners based on a roulette wheel whose sectors' width is based on the ranks of the individuals, with selectionPressure
 //acting as a parameter to determine how much rank weighs.
 //Returns the **indexes** of the winners
@@ -91,23 +112,45 @@ func LinearRanking(population [][]int, fitness []float64, minOrMax bool, selecti
     }
     k1 := selectionPressure/float64(individuals)
     k2 := selectionPressure/float64(individuals*(individuals-1))
-    fitnessOrdered := fitness
-    sort.Float64s(fitnessOrdered)
-    //ranksLooukup stores the index of the ranked individuals in the population array
-    ranksLookup := make([]int, individuals)
-    if minOrMax {
-        for i:= range(ranksLookup) {
-            ranksLookup[i] = individuals - 1 - sort.SearchFloat64s(fitness, fitnessOrdered[i])
-        }
-    } else {
-        for i:= range(ranksLookup) {
-            ranksLookup[i] = sort.SearchFloat64s(fitness, fitnessOrdered[i])
-        }
-    }
+    ranksLookup := calculateRanks(fitness, minOrMax)
     cumulativeProbabilities := make([]float64, individuals)
     cumulativeProbabilities[0] = k1
     for i:=1;i<individuals;i++ {
         cumulativeProbabilities[i]+= cumulativeProbabilities[i-1] - float64(i)*k2
+    }
+    reciprocal_sum := 1./cumulativeProbabilities[individuals-1]
+    for i:= range(cumulativeProbabilities) {
+        cumulativeProbabilities[i]*=reciprocal_sum
+    }
+    winners := make([]int, winnersSize)
+    for i:= range(winners) {
+        winners[i] = ranksLookup[sort.SearchFloat64s(cumulativeProbabilities, r.Float64())]
+    }
+    return winners
+}
+
+//Picks winners based on a roulette wheel whose sectors' width is based on the ranks of the individuals, with k1
+//acting as a parameter to determine how much rank weighs. The weight decreases exponentially.
+//Returns the **indexes** of the winners
+func ExponentialRanking(population [][]int, fitness []float64, minOrMax bool, k1 float64, winnersSize int) []int {
+    individuals := len(population)
+    if individuals == 0 {
+        log.Fatal("Requested a RouletteRanking on an empty population\n")
+    }
+    if len(fitness) != individuals {
+        log.Fatalf("The number of fitness values is different from the population size, %d vs %d", len(fitness), individuals)
+    }
+    if k1 < 0.01 || k1 > 0.1 {
+        log.Fatalf("The k1 must be within 0.01 and 0.1, got %f\n", k1)
+    }
+    //k2 is 1/(1-(1-k1)^n), but given that only the product of k1*k2 enters the formula for the probability,
+    //it's more computationally efficient to store that instead
+    k2mod := k1/(1.-math.Pow(1.-k1, float64(individuals)))
+    ranksLookup := calculateRanks(fitness, minOrMax)
+    cumulativeProbabilities := make([]float64, individuals)
+    cumulativeProbabilities[0] = k2mod 
+    for i:=1;i<individuals;i++ {
+        cumulativeProbabilities[i]+= cumulativeProbabilities[i-1] + k2mod*math.Pow(1.-k1, float64(i)) 
     }
     reciprocal_sum := 1./cumulativeProbabilities[individuals-1]
     for i:= range(cumulativeProbabilities) {
