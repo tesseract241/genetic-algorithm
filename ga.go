@@ -34,8 +34,10 @@ func GeneratePopulation(individuals int, genotypeTemplate [][]int) [][]int {
     return population
 }
 
-
-func RouletteRanking(population [][]int, fitness []float64, minFitness float64) []int {
+//Picks winners based on a roulette wheel whose sectors' width are proportional to the fitness of each individual.
+//If using a minimizing fitness, it needs the minimum fitness, otherwise give a negative number for minFitness
+//Returns the indexes of the winners
+func RouletteRanking(population [][]int, fitness []float64, minFitness float64, winnersSize int) []int {
     individuals := len(population)
     if individuals == 0 {
         log.Fatal("Requested a RouletteRanking on an empty population\n")
@@ -67,7 +69,7 @@ func RouletteRanking(population [][]int, fitness []float64, minFitness float64) 
             cumulativeProbabilities[i] *= reciprocal_sum
         }
     }
-    winners := make([]int, individuals)
+    winners := make([]int, winnersSize)
     for i:= range(winners) {
         winners[i] = sort.SearchFloat64s(cumulativeProbabilities, r.Float64())
     }
