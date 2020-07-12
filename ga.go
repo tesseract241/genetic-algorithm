@@ -58,7 +58,6 @@ func RouletteRanking(population [][]int, fitness []float64, minFitness float64, 
     } else {
         //For problems in which the fitness must be minimized, the modified fitness = 1/(1 + fitness - minFitness(len(population))
         //is used.
-        //TODO Check if this can be coded more efficiently by rewriting the sum 1/a + 1/b as (a+b)/(a*b)
         minFitness/=float64(individuals)
         cumulativeProbabilities[0] = 1./(1. + fitness[0] - minFitness)
         for i:=1;i<individuals;i++ {
@@ -72,6 +71,51 @@ func RouletteRanking(population [][]int, fitness []float64, minFitness float64, 
     winners := make([]int, winnersSize)
     for i:= range(winners) {
         winners[i] = sort.SearchFloat64s(cumulativeProbabilities, r.Float64())
+    }
+    return winners
+}
+
+//Picks winners based on a roulette wheel whose sectors' width is based on the ranks of the individuals, with selectionPressure
+//acting as a parameter to determine how much rank weighs.
+//Returns the **indexes** of the winners
+func LinearRanking(population [][]int, fitness []float64, minOrMax bool, selectionPressure float64, winnersSize int) []int {
+    individuals := len(population)
+    if individuals == 0 {
+        log.Fatal("Requested a RouletteRanking on an empty population\n")
+    }
+    if len(fitness) != individuals {
+        log.Fatalf("The number of fitness values is different from the population size, %d vs %d", len(fitness), individuals)
+    }
+    if selectionPressure < 1 || selectionPressure > 2 {
+        log.Fatalf("The selection pressure must be within 1 and 2, got %f\n", selectionPressure)
+    }
+    k1 := selectionPressure/float64(individuals)
+    k2 := selectionPressure/float64(individuals*(individuals-1))
+    fitnessOrdered := fitness
+    sort.Float64s(fitnessOrdered)
+    //ranksLooukup stores the index of the ranked individuals in the population array
+    ranksLookup := make([]int, individuals)
+    if minOrMax {
+        for i:= range(ranksLookup) {
+            ranksLookup[i] = individuals - 1 - sort.SearchFloat64s(fitness, fitnessOrdered[i])
+        }
+    } else {
+        for i:= range(ranksLookup) {
+            ranksLookup[i] = sort.SearchFloat64s(fitness, fitnessOrdered[i])
+        }
+    }
+    cumulativeProbabilities := make([]float64, individuals)
+    cumulativeProbabilities[0] = k1
+    for i:=1;i<individuals;i++ {
+        cumulativeProbabilities[i]+= cumulativeProbabilities[i-1] - float64(i)*k2
+    }
+    reciprocal_sum := 1./cumulativeProbabilities[individuals-1]
+    for i:= range(cumulativeProbabilities) {
+        cumulativeProbabilities[i]*=reciprocal_sum
+    }
+    winners := make([]int, winnersSize)
+    for i:= range(winners) {
+        winners[i] = ranksLookup[sort.SearchFloat64s(cumulativeProbabilities, r.Float64())]
     }
     return winners
 }
