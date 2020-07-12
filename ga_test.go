@@ -80,6 +80,60 @@ func TestRouletteRanking(t *testing.T) {
     }
 }
 
+func TestLinearRanking(t *testing.T) {
+    log.Println("Testing LinearRanking")
+    genotypeTemplate := make([][]int, genotypeLength)
+    for i:= range(genotypeTemplate) {
+        genotypeTemplate[i] = make([]int, 2)
+        genotypeTemplate[i][0] = genotypeMin
+        genotypeTemplate[i][1] = genotypeMax
+    }
+    population := GeneratePopulation(populationSize, genotypeTemplate)
+    fitness := make([]float64, populationSize)
+    for i:= range(fitness) {
+        fitness[i] = r.Float64()
+    }
+    for i:=winnersSizeMin;i<=winnersSizeMax;i++ {
+        selectionPressure := 1. + r.Float64()
+        winners := LinearRanking(population, fitness, true, selectionPressure, i)
+        if len(winners)!=i {
+                t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), i)
+        }
+        for j:=range(winners) {
+                if winners[j]<0 || winners[j]>=populationSize {
+                    t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+                }
+        }
+    }
+}
+
+func TestExponentionalRanking(t *testing.T) {
+    log.Println("Testing ExponentialRanking")
+    genotypeTemplate := make([][]int, genotypeLength)
+    for i:= range(genotypeTemplate) {
+        genotypeTemplate[i] = make([]int, 2)
+        genotypeTemplate[i][0] = genotypeMin
+        genotypeTemplate[i][1] = genotypeMax
+    }
+    population := GeneratePopulation(populationSize, genotypeTemplate)
+    fitness := make([]float64, populationSize)
+    for i:= range(fitness) {
+        fitness[i] = r.Float64()
+    }
+    for i:=winnersSizeMin;i<=winnersSizeMax;i++ {
+        selectionPressure := 0.01 + r.Float64()*(9./100.)
+        winners := ExponentialRanking(population, fitness, true, selectionPressure, i)
+        if len(winners)!=i {
+                t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), i)
+        }
+        for j:=range(winners) {
+                if winners[j]<0 || winners[j]>=populationSize {
+                    t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+                }
+        }
+    }
+}
+
 func TestTournamentRanking(t *testing.T) {
     log.Println("Testing TournamentRanking")
     genotypeTemplate := make([][]int, genotypeLength)
