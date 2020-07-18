@@ -109,11 +109,11 @@ func CalculateRanks(fitness []float64, minOrMax bool) []int {
     ranksLookup := make([]int, individuals)
     if minOrMax {
         for i:= range ranksLookup {
-            ranksLookup[i] = individuals - 1 - sort.SearchFloat64s(fitness, fitnessOrdered[i])
+            ranksLookup[i] = sort.SearchFloat64s(fitness, fitnessOrdered[i])
         }
     } else {
         for i:= range ranksLookup {
-            ranksLookup[i] = sort.SearchFloat64s(fitness, fitnessOrdered[i])
+            ranksLookup[i] = individuals - 1 - sort.SearchFloat64s(fitness, fitnessOrdered[i])
         }
     }
     return ranksLookup
@@ -420,6 +420,27 @@ func TournamentRanking(population [][]int, fitness []float64, minOrMax bool, tou
         log.Println("The tournament size is greater than the number of individuals in the population, capping it")
         tournamentSize = individuals
     }
+    ranksLookup := CalculateRanks(fitness, minOrMax)
+    winners := make([]int, winnersSize)
+    for i:= range winners {
+        contenders := r.Perm(individuals)
+        winners[i] = contenders[0]
+        for j:=1; j<tournamentSize; j++ {
+            //TODO Find for what values of individuals/tournamentSize it's worth doing something like
+            /*
+                if winners[i] < tournamentSize - j {
+                    break
+                }
+            */
+            if contenders[j] < winners[i] {
+                winners[i] = contenders[j]
+            }
+        }
+    }
+    for i:= range winners {
+        winners[i] = ranksLookup[winners[i]]
+    }
+    /*
     var fitnessMultiplier float64
     if minOrMax {
         fitnessMultiplier = -1.
@@ -438,7 +459,7 @@ func TournamentRanking(population [][]int, fitness []float64, minOrMax bool, tou
             }
         }
         winners[i] = winner
-    }
+    }*/
     return winners
 }
 
