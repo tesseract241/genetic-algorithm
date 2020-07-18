@@ -122,17 +122,30 @@ func CalculateRanks(fitness []float64, minOrMax bool) []int {
 //calculateLinearRankingProbabilities provides the cumulative probabilites for linear ranking, 
 //following the formula P(r) = k1 − r*k2 with k1=selectionPressure/populationSize 
 //and k2=selectionPressure/(populationSize*(populationSize-1))
-func calculateLinearRankingProbabilities(selectionPressure float64, populationSize int) []float64 {
+//NOTE that the returned probabilites are not normalized, both for precision and for speed
+func calculateLinearRankingProbabilities(selectionPressure float64, populationSize int, startingValue float64, startingIndex int) []float64 {
+    if startingIndex < 0 {
+        log.Fatalf("Got a startingIndex of %d, should be non-negative\n", startingIndex)
+    }
+    if startingValue < 0 {
+        log.Fatalf("Got a startingValue of %f, should be non-negative\n", startingValue)
+    }
     k1 := selectionPressure/float64(populationSize)
     k2 := selectionPressure/float64(populationSize*(populationSize-1))
-    cumulativeProbabilities := make([]float64, populationSize)
-    cumulativeProbabilities[0] = k1
-    for i:=1;i<populationSize;i++ {
-        cumulativeProbabilities[i]+= cumulativeProbabilities[i-1] - float64(i)*k2
+    cumulativeProbabilities := make([]float64, populationSize - startingIndex)
+    if startingIndex != 0 {
+        //We recreate the last element of the previous cumulativeProbabilities to avoid having two separate paths, 
+        //we'll drop it before returning the slice
+        cumulativeProbabilities[0] = startingValue
+    } else {
+        cumulativeProbabilities[0] = k1
     }
-    reciprocal_sum := 1./cumulativeProbabilities[populationSize-1]
-    for i:= range cumulativeProbabilities {
-        cumulativeProbabilities[i]*=reciprocal_sum
+    for i:=1;i<populationSize - startingIndex;i++ {
+        cumulativeProbabilities[i] = cumulativeProbabilities[i-1] + k1 - float64(i+startingIndex)*k2
+    }
+    if startingIndex !=0 {
+        //Here we drop the recreated last element
+        return cumulativeProbabilities[1:]
     }
     return cumulativeProbabilities
 }
@@ -146,12 +159,6 @@ func linearRankingProbabilitiesGenerator(selectionPressure float64, populationSi
     var temp_probabilities []float64
     for i:= range linear_ranks_selection_pressure[0] {
         if linear_ranks_selection_pressure[0][i]==selectionPressure {
-            if len(linear_ranks_probabilities[i])<populationSize {
-                //The stored table is not long enough to cover the populationSize, we extend it (recalculating all elements)
-                linear_ranks_probabilities[i] = make([]float64, populationSize)
-                linear_ranks_probabilities[i] = calculateLinearRankingProbabilities(selectionPressure, populationSize)
-                return linear_ranks_probabilities[i]
-            }
             index = i
             linear_ranks_selection_pressure[1][i]+=1
             usage = linear_ranks_selection_pressure[1][i]
@@ -162,7 +169,19 @@ func linearRankingProbabilitiesGenerator(selectionPressure float64, populationSi
     if index>-1 {
         //The selectionPressure is already at least tracked
         if index < stored_probabilities {
-            //The selectionPressure is already stored, we check if we need to sort the tables 
+            //The selectionPressure is already stored, we check if it's long enough and if we need to sort the tables 
+            if len(linear_ranks_probabilities[index])<populationSize {
+                //The stored table is not long enough to cover the populationSize, we extend it (calculating only the new elements)
+                linear_ranks_probabilities[index] = 
+                    append(
+                        linear_ranks_probabilities[index], 
+                        calculateLinearRankingProbabilities(
+                            selectionPressure, 
+                            populationSize, 
+                            linear_ranks_probabilities[index][len(linear_ranks_probabilities)-1], 
+                            len(linear_ranks_probabilities[index])-1)...
+                    )
+            }
             sorted := true
             if index > 0 && linear_ranks_selection_pressure[1][index-1]<linear_ranks_selection_pressure[1][index] {
                 sorted = false
@@ -179,10 +198,10 @@ func linearRankingProbabilitiesGenerator(selectionPressure float64, populationSi
             //The selectionPressure is **not** stored, we need to generate it, we check if its usage has surpassed that
             //of the lowest table, and check it for sorting if so
             if usage > linear_ranks_selection_pressure[1][stored_probabilities] {
-                temp_probabilities = calculateLinearRankingProbabilities(selectionPressure, populationSize)
+                temp_probabilities = calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
                 hasToSwap = true
             } else {
-                return calculateLinearRankingProbabilities(selectionPressure, populationSize)
+                return calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
             }
         }
     } else {
@@ -201,12 +220,12 @@ func linearRankingProbabilitiesGenerator(selectionPressure float64, populationSi
             linear_ranks_selection_pressure[1][index] = 1.
             if index < stored_probabilities {
                 linear_ranks_probabilities[index] = make([]float64, populationSize)
-                linear_ranks_probabilities[index] = calculateLinearRankingProbabilities(selectionPressure, populationSize)
+                linear_ranks_probabilities[index] = calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
                 return linear_ranks_probabilities[index]
             }
-            return calculateLinearRankingProbabilities(selectionPressure, populationSize)
+            return calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
         } else {
-            return calculateLinearRankingProbabilities(selectionPressure, populationSize)
+            return calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
         }
     }
     if hasToSwap {
@@ -239,22 +258,36 @@ func LinearRanking(population [][]int, fitness []float64, minOrMax bool, selecti
     cumulativeProbabilities := linearRankingProbabilitiesGenerator(selectionPressure, individuals)
     winners := make([]int, winnersSize)
     for i:= range winners {
-        winners[i] = ranksLookup[sort.SearchFloat64s(cumulativeProbabilities, r.Float64())]
+        winners[i] = 
+        ranksLookup[sort.SearchFloat64s(cumulativeProbabilities, r.Float64()*cumulativeProbabilities[len(cumulativeProbabilities) - 1])]
     }
     return winners
 }
 
 //calculateExponentialRankingProbabilities provides the cumulative probabilites for exponential ranking, 
 //following the formula P(r) = k1*k2*(1-k1)^r with k1 given and k2=1/(1-(1-k1)^populationSize)
-func calculateExponentialRankingProbabilities(k1, k1k2 float64, populationSize int) []float64 {
-    cumulativeProbabilities := make([]float64, populationSize)
-    cumulativeProbabilities[0] = k1k2 
-    for i:=1;i<populationSize;i++ {
-        cumulativeProbabilities[i]+= cumulativeProbabilities[i-1] + k1k2*math.Pow(1.-k1, float64(i)) 
+//NOTE that the returned probabilites are not normalized, both for precision and for speed
+func calculateExponentialRankingProbabilities(k1, k1k2 float64, populationSize int, startingValue float64, startingIndex int) []float64 {
+    if startingIndex < 0 {
+        log.Fatalf("Got a startingIndex of %d, should be non-negative\n", startingIndex)
     }
-    reciprocal_sum := 1./cumulativeProbabilities[populationSize-1]
-    for i:= range cumulativeProbabilities {
-        cumulativeProbabilities[i]*=reciprocal_sum
+    if startingValue < 0 {
+        log.Fatalf("Got a startingValue of %f, should be non-negative\n", startingValue)
+    }
+    cumulativeProbabilities := make([]float64, populationSize - startingIndex)
+    if startingIndex != 0 {
+        cumulativeProbabilities[0] = startingValue
+        //We recreate the last element of the previous cumulativeProbabilities to avoid having two separate paths, 
+        //we'll drop it before returning the slice
+    } else {
+        cumulativeProbabilities[0] = k1k2
+    }
+    for i:=1;i<populationSize - startingIndex;i++ {
+        cumulativeProbabilities[i]+= cumulativeProbabilities[i-1] + k1k2*math.Pow(1.-k1, float64(i+startingIndex)) 
+    }
+    if startingIndex != 0{
+        //Here we drop the recreated last element
+        return cumulativeProbabilities[1:]
     }
     return cumulativeProbabilities
 }
@@ -269,12 +302,6 @@ func exponentialRankingProbabilitiesGenerator(k1 float64, populationSize int) []
     var temp_probabilities []float64
     for i:= range exponential_ranks_k1[0] {
         if exponential_ranks_k1[0][i]==k1 {
-            if len(exponential_ranks_probabilities[i])<populationSize {
-                //The stored table is not long enough to cover the populationSize, we extend it (recalculating all elements)
-                exponential_ranks_probabilities[i] = make([]float64, populationSize)
-                exponential_ranks_probabilities[i] = calculateExponentialRankingProbabilities(k1, k1k2, populationSize)
-                return exponential_ranks_probabilities[i]
-            }
             index = i
             exponential_ranks_k1[1][i]+=1
             usage = exponential_ranks_k1[1][i]
@@ -286,6 +313,16 @@ func exponentialRankingProbabilitiesGenerator(k1 float64, populationSize int) []
         //The k1 is already at least tracked
         if index < stored_probabilities {
             //The k1 is already stored, we check if we need to sort the tables 
+            if len(exponential_ranks_probabilities[index])<populationSize {
+                //The stored table is not long enough to cover the populationSize, we extend it (recalculating all elements)
+                exponential_ranks_probabilities[index] = append(
+                    exponential_ranks_probabilities[index],
+                    calculateExponentialRankingProbabilities(
+                        k1, k1k2, populationSize,
+                        exponential_ranks_probabilities[index][len(exponential_ranks_probabilities)-1],
+                        len(exponential_ranks_probabilities[index])-1)...
+                    )
+            }
             sorted := true
             if index > 0 && exponential_ranks_k1[1][index-1]<exponential_ranks_k1[1][index] {
                 sorted = false
@@ -302,10 +339,10 @@ func exponentialRankingProbabilitiesGenerator(k1 float64, populationSize int) []
             //The k1 is **not** stored, we need to generate it, we check if its usage has surpassed that
             //of the lowest table, and check it for sorting if so
             if usage > exponential_ranks_k1[1][stored_probabilities] {
-                temp_probabilities = calculateExponentialRankingProbabilities(k1, k1k2, populationSize)
+                temp_probabilities = calculateExponentialRankingProbabilities(k1, k1k2, populationSize, 0, 0)
                 hasToSwap = true
             } else {
-                return calculateExponentialRankingProbabilities(k1, k1k2, populationSize)
+                return calculateExponentialRankingProbabilities(k1, k1k2, populationSize, 0, 0)
             }
         }
     } else {
@@ -324,12 +361,12 @@ func exponentialRankingProbabilitiesGenerator(k1 float64, populationSize int) []
             exponential_ranks_k1[1][index] = 1.
             if index < stored_probabilities {
                 exponential_ranks_probabilities[index] = make([]float64, populationSize)
-                exponential_ranks_probabilities[index] = calculateExponentialRankingProbabilities(k1, k1k2, populationSize)
+                exponential_ranks_probabilities[index] = calculateExponentialRankingProbabilities(k1, k1k2, populationSize, 0, 0)
                 return exponential_ranks_probabilities[index]
             }
-            return calculateExponentialRankingProbabilities(k1, k1k2, populationSize)
+            return calculateExponentialRankingProbabilities(k1, k1k2, populationSize, 0, 0)
         } else {
-            return calculateExponentialRankingProbabilities(k1, k1k2, populationSize)
+            return calculateExponentialRankingProbabilities(k1, k1k2, populationSize, 0, 0)
         }
     }
     if hasToSwap {
@@ -362,7 +399,8 @@ func ExponentialRanking(population [][]int, fitness []float64, minOrMax bool, k1
     cumulativeProbabilities := exponentialRankingProbabilitiesGenerator(k1, individuals)
     winners := make([]int, winnersSize)
     for i:= range winners {
-        winners[i] = ranksLookup[sort.SearchFloat64s(cumulativeProbabilities, r.Float64())]
+        winners[i] = 
+        ranksLookup[sort.SearchFloat64s(cumulativeProbabilities, r.Float64()*cumulativeProbabilities[len(cumulativeProbabilities) - 1])]
     }
     return winners
 }

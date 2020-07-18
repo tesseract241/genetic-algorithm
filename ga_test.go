@@ -9,36 +9,38 @@ import (
 
 const (
     genotypeLength      =  5
-    populationSize      =  100
+    populationSizeMin   =  50 
+    populationSizeMax   =  100
     genotypeMin         = -10
     genotypeMax         =  10
+    kRange              =  5
     mutationProbability =  0.35
     mutationAmplitude   =  10
     tournamentSizeMin   =  2
-    tournamentSizeMax   =  populationSize
     winnersSizeMin      =  1
-    winnersSizeMax      =  populationSize
 )
 
 func TestGeneratePopulation(t *testing.T) {
     log.Println("Testing GeneratePopulation")
     genotypeTemplate := make([][]int, genotypeLength)
-    for i:= range(genotypeTemplate) {
-        genotypeTemplate[i] = make([]int, 2)
-        genotypeTemplate[i][0] = genotypeMin
-        genotypeTemplate[i][1] = genotypeMax
-    }
-    population := GeneratePopulation(populationSize, genotypeTemplate)
-    if len(population) != populationSize {
-        t.Errorf("Got a population size of %d when it should have been %d\n", len(population), populationSize)
-    }
-    for i:= range(population) {
-        for j:= range(population[i]) {
-            if population[i][j] > genotypeMax {
-                t.Errorf("%d-th gene of %d-th individual was beyond the max of %d with value %d\n", i, j, genotypeMax, population[i][j])
-            }
-            if population[i][j] < genotypeMin {
-                t.Errorf("%d-th gene of %d-th individual was below the min of %d with value %d\n", i, j, genotypeMin, population[i][j])
+    for populationSize:=populationSizeMin;populationSize<=populationSizeMax;populationSize++ {    
+        for i:= range(genotypeTemplate) {
+            genotypeTemplate[i] = make([]int, 2)
+            genotypeTemplate[i][0] = genotypeMin
+            genotypeTemplate[i][1] = genotypeMax
+        }
+        population := GeneratePopulation(populationSize, genotypeTemplate)
+        if len(population) != populationSize {
+            t.Errorf("Got a population size of %d when it should have been %d\n", len(population), populationSize)
+        }
+        for i:= range(population) {
+            for j:= range(population[i]) {
+                if population[i][j] > genotypeMax {
+                    t.Errorf("%d-th gene of %d-th individual was beyond the max of %d with value %d\n", i, j, genotypeMax, population[i][j])
+                }
+                if population[i][j] < genotypeMin {
+                    t.Errorf("%d-th gene of %d-th individual was below the min of %d with value %d\n", i, j, genotypeMin, population[i][j])
+                }
             }
         }
     }
@@ -52,29 +54,31 @@ func TestRouletteRanking(t *testing.T) {
         genotypeTemplate[i][0] = genotypeMin
         genotypeTemplate[i][1] = genotypeMax
     }
-    population := GeneratePopulation(populationSize, genotypeTemplate)
-    fitness := make([]float64, populationSize)
-    sort.Float64s(fitness)
-    for i:= range(fitness) {
-        fitness[i] = r.Float64()
-    }
-    for i:=winnersSizeMin;i<winnersSizeMax;i++ {
-        winners := RouletteRanking(population, fitness, -5, i)
-        if len(winners)!=i {
-            t.Errorf("The number of winners is different from that requested, respectively %d and %d (max fitness)\n", len(winners), i)
+    for populationSize:=populationSizeMin;populationSize<=populationSizeMax;populationSize++ {    
+        population := GeneratePopulation(populationSize, genotypeTemplate)
+        fitness := make([]float64, populationSize)
+        sort.Float64s(fitness)
+        for i:= range(fitness) {
+            fitness[i] = r.Float64()
         }
-        for i:=range(winners) {
-            if winners[i]<0 || winners[i]>=populationSize {
-                t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+        for i:=winnersSizeMin;i<populationSize;i++ {
+            winners := RouletteRanking(population, fitness, -5, i)
+            if len(winners)!=i {
+                t.Errorf("The number of winners is different from that requested, respectively %d and %d (max fitness)\n", len(winners), i)
             }
-        }
-        winners = RouletteRanking(population, fitness, fitness[0], i)
-        if len(winners)!=i {
-            t.Errorf("The number of winners is different from that requested, respectively %d and %d (max fitness)\n", len(winners), i)
-        }
-        for i:=range(winners) {
-            if winners[i]<0 || winners[i]>=populationSize {
-                t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+            for i:=range(winners) {
+                if winners[i]<0 || winners[i]>=populationSize {
+                    t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+                }
+            }
+            winners = RouletteRanking(population, fitness, fitness[0], i)
+            if len(winners)!=i {
+                t.Errorf("The number of winners is different from that requested, respectively %d and %d (max fitness)\n", len(winners), i)
+            }
+            for i:=range(winners) {
+                if winners[i]<0 || winners[i]>=populationSize {
+                    t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+                }
             }
         }
     }
@@ -88,21 +92,28 @@ func TestLinearRanking(t *testing.T) {
         genotypeTemplate[i][0] = genotypeMin
         genotypeTemplate[i][1] = genotypeMax
     }
-    population := GeneratePopulation(populationSize, genotypeTemplate)
-    fitness := make([]float64, populationSize)
-    for i:= range(fitness) {
-        fitness[i] = r.Float64()
+    var selectionPressures [kRange]float64
+    for i:=range selectionPressures {
+            selectionPressures[i] = 1. + r.Float64()
     }
-    for i:=winnersSizeMin;i<=winnersSizeMax;i++ {
-        selectionPressure := 1. + r.Float64()
-        winners := LinearRanking(population, fitness, true, selectionPressure, i)
-        if len(winners)!=i {
-                t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), i)
+    for populationSize:=populationSizeMin;populationSize<=populationSizeMax;populationSize++ {    
+        population := GeneratePopulation(populationSize, genotypeTemplate)
+        fitness := make([]float64, populationSize)
+        for i:= range(fitness) {
+            fitness[i] = r.Float64()
         }
-        for j:=range(winners) {
-                if winners[j]<0 || winners[j]>=populationSize {
-                    t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+        for i:=winnersSizeMin;i<=populationSize;i++ {
+            for k := range selectionPressures {
+                winners := LinearRanking(population, fitness, true, selectionPressures[k], i)
+                if len(winners)!=i {
+                        t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), i)
                 }
+                for j:=range(winners) {
+                        if winners[j]<0 || winners[j]>=populationSize {
+                            t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+                        }
+                }
+            }
         }
     }
 }
@@ -115,21 +126,28 @@ func TestExponentionalRanking(t *testing.T) {
         genotypeTemplate[i][0] = genotypeMin
         genotypeTemplate[i][1] = genotypeMax
     }
-    population := GeneratePopulation(populationSize, genotypeTemplate)
-    fitness := make([]float64, populationSize)
-    for i:= range(fitness) {
-        fitness[i] = r.Float64()
+    var selectionPressures [kRange]float64
+        for i:=range selectionPressures {
+            selectionPressures[i] = 0.01 + r.Float64()*(9./100.)
     }
-    for i:=winnersSizeMin;i<=winnersSizeMax;i++ {
-        selectionPressure := 0.01 + r.Float64()*(9./100.)
-        winners := ExponentialRanking(population, fitness, true, selectionPressure, i)
-        if len(winners)!=i {
-                t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), i)
+    for populationSize:=populationSizeMin;populationSize<=populationSizeMax;populationSize++ {    
+        population := GeneratePopulation(populationSize, genotypeTemplate)
+        fitness := make([]float64, populationSize)
+        for i:= range(fitness) {
+            fitness[i] = r.Float64()
         }
-        for j:=range(winners) {
-                if winners[j]<0 || winners[j]>=populationSize {
-                    t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+        for i:=winnersSizeMin;i<=populationSize;i++ {
+            for k := range selectionPressures {
+                winners := ExponentialRanking(population, fitness, true, selectionPressures[k], i)
+                if len(winners)!=i {
+                        t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), i)
                 }
+                for j:=range(winners) {
+                        if winners[j]<0 || winners[j]>=populationSize {
+                            t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+                        }
+                }
+            }
         }
     }
 }
@@ -142,14 +160,16 @@ func TestTournamentRanking(t *testing.T) {
         genotypeTemplate[i][0] = genotypeMin
         genotypeTemplate[i][1] = genotypeMax
     }
+    //TODO Make the for loops into goroutine and let populationSize loop over its own loop
+    populationSize := populationSizeMax
     population := GeneratePopulation(populationSize, genotypeTemplate)
     fitness := make([]float64, populationSize)
     for i:= range(fitness) {
         fitness[i] = r.Float64()
     }
     sort.Float64s(fitness)
-    for i:=tournamentSizeMin;i<=tournamentSizeMax;i++ {
-        for j:=winnersSizeMin;j<=winnersSizeMax;j++ {
+    for i:=tournamentSizeMin;i<=populationSize;i++ {
+        for j:=winnersSizeMin;j<=populationSize;j++ {
             winners := TournamentRanking(population, fitness, true, i, j)
             if len(winners)!=j {
                 t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), j)
