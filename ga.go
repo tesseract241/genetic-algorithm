@@ -124,29 +124,17 @@ func CalculateRanks(fitness []float64, minOrMax bool) []int {
 //following the formula P(r) = k1 − r*k2 with k1=selectionPressure/populationSize 
 //and k2=selectionPressure/(populationSize*(populationSize-1))
 //NOTE that the returned probabilites are not normalized, both for precision and for speed
-func calculateLinearRankingProbabilities(selectionPressure float64, populationSize int, startingValue float64, startingIndex int) []float64 {
-    if startingIndex < 0 {
-        log.Fatalf("Got a startingIndex of %d, should be non-negative\n", startingIndex)
+func calculateLinearRankingProbabilities(selectionPressure float64, populationSize int) []float64 {
+    k2 := selectionPressure/float64(populationSize - 1)
+    cumulativeProbabilities := make([]float64, populationSize)
+    cumulativeProbabilities[0] = selectionPressure 
+    for i:=1;i<populationSize-1;i++ {
+        cumulativeProbabilities[i] = cumulativeProbabilities[i-1] + selectionPressure - float64(i)*k2
     }
-    if startingValue < 0 {
-        log.Fatalf("Got a startingValue of %f, should be non-negative\n", startingValue)
-    }
-    k1 := selectionPressure/float64(populationSize)
-    k2 := selectionPressure/float64(populationSize*(populationSize-1))
-    cumulativeProbabilities := make([]float64, populationSize - startingIndex)
-    if startingIndex != 0 {
-        //We recreate the last element of the previous cumulativeProbabilities to avoid having two separate paths, 
-        //we'll drop it before returning the slice
-        cumulativeProbabilities[0] = startingValue
-    } else {
-        cumulativeProbabilities[0] = k1
-    }
-    for i:=1;i<populationSize - startingIndex;i++ {
-        cumulativeProbabilities[i] = cumulativeProbabilities[i-1] + k1 - float64(i+startingIndex)*k2
-    }
-    if startingIndex !=0 {
-        //Here we drop the recreated last element
-        return cumulativeProbabilities[1:]
+    //The last P(r) is always zero, but k2*(populationSize-1) can end up more than k1 just as much as it can end up less than that,
+    //due to precision errors, so we hard-code it.
+    if populationSize > 1 {
+        cumulativeProbabilities[populationSize-1] = cumulativeProbabilities[populationSize-2]
     }
     return cumulativeProbabilities
 }
@@ -173,15 +161,7 @@ func linearRankingProbabilitiesGenerator(selectionPressure float64, populationSi
             //The selectionPressure is already stored, we check if it's long enough and if we need to sort the tables 
             if len(linear_ranks_probabilities[index])<populationSize {
                 //The stored table is not long enough to cover the populationSize, we extend it (calculating only the new elements)
-                linear_ranks_probabilities[index] = 
-                    append(
-                        linear_ranks_probabilities[index], 
-                        calculateLinearRankingProbabilities(
-                            selectionPressure, 
-                            populationSize, 
-                            linear_ranks_probabilities[index][len(linear_ranks_probabilities)-1], 
-                            len(linear_ranks_probabilities[index])-1)...
-                    )
+                linear_ranks_probabilities[index] = calculateLinearRankingProbabilities(selectionPressure, populationSize)
             }
             sorted := true
             if index > 0 && linear_ranks_selection_pressure[1][index-1]<linear_ranks_selection_pressure[1][index] {
@@ -197,12 +177,14 @@ func linearRankingProbabilitiesGenerator(selectionPressure float64, populationSi
             }
         } else {
             //The selectionPressure is **not** stored, we need to generate it, we check if its usage has surpassed that
-            //of the lowest table, and check it for sorting if so
+            //of the lowest stored table, and check it for sorting if so
+            //TODO What we have to do is check if it's higher than the previous tracked one, and only afterwards if it's to be stored
+            //and the sort should run until sort.Float64sAreSorted(linear_ranks_selection_pressure[1]) is true
             if usage > linear_ranks_selection_pressure[1][stored_probabilities] {
-                temp_probabilities = calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
+                temp_probabilities = calculateLinearRankingProbabilities(selectionPressure, populationSize)
                 hasToSwap = true
             } else {
-                return calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
+                return calculateLinearRankingProbabilities(selectionPressure, populationSize)
             }
         }
     } else {
@@ -221,12 +203,12 @@ func linearRankingProbabilitiesGenerator(selectionPressure float64, populationSi
             linear_ranks_selection_pressure[1][index] = 1.
             if index < stored_probabilities {
                 linear_ranks_probabilities[index] = make([]float64, populationSize)
-                linear_ranks_probabilities[index] = calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
+                linear_ranks_probabilities[index] = calculateLinearRankingProbabilities(selectionPressure, populationSize)
                 return linear_ranks_probabilities[index]
             }
-            return calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
+            return calculateLinearRankingProbabilities(selectionPressure, populationSize)
         } else {
-            return calculateLinearRankingProbabilities(selectionPressure, populationSize, 0, 0)
+            return calculateLinearRankingProbabilities(selectionPressure, populationSize)
         }
     }
     if hasToSwap {
@@ -260,7 +242,7 @@ func LinearRanking(population [][]int, fitness []float64, minOrMax bool, selecti
     winners := make([]int, winnersSize)
     for i:= range winners {
         winners[i] = 
-        ranksLookup[sort.SearchFloat64s(cumulativeProbabilities, r.Float64()*cumulativeProbabilities[len(cumulativeProbabilities) - 1])]
+        ranksLookup[sort.SearchFloat64s(cumulativeProbabilities, r.Float64()*cumulativeProbabilities[individuals - 1])]
     }
     return winners
 }
