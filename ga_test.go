@@ -3,6 +3,7 @@ package genetic_algorithm
 import (
     r "math/rand"
     "log"
+    "sync"
     "sort"
     "testing"
 )
@@ -110,7 +111,7 @@ func TestLinearRanking(t *testing.T) {
                 }
                 for j:=range(winners) {
                         if winners[j]<0 || winners[j]>=populationSize {
-                            t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+                            t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[j], populationSize)
                         }
                 }
             }
@@ -161,38 +162,57 @@ func TestTournamentRanking(t *testing.T) {
         genotypeTemplate[i][1] = genotypeMax
     }
     //TODO Make the for loops into goroutine and let populationSize loop over its own loop
-    populationSize := populationSizeMax
-    population := GeneratePopulation(populationSize, genotypeTemplate)
-    fitness := make([]float64, populationSize)
-    for i:= range(fitness) {
-        fitness[i] = r.Float64()
-    }
-    sort.Float64s(fitness)
-    for i:=tournamentSizeMin;i<=populationSize;i++ {
-        for j:=winnersSizeMin;j<=populationSize;j++ {
-            winners := TournamentRanking(population, fitness, true, i, j)
-            if len(winners)!=j {
-                t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), j)
-            }
-            for i:=range(winners) {
-                if winners[i]<0 || winners[i]>=populationSize {
-                    t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[i], populationSize)
+    var mux sync.Mutex
+    for populationSize:= populationSizeMin; populationSize <= populationSizeMax; populationSize++ {    
+        population := GeneratePopulation(populationSize, genotypeTemplate)
+        fitness := make([]float64, populationSize)
+        for i:= range(fitness) {
+            fitness[i] = r.Float64()
+        }
+        sort.Float64s(fitness)
+        c := make(chan int, populationSize - tournamentSizeMin + 1)
+        for i:=tournamentSizeMin;i<=populationSize;i++ {
+            go func(populationSize int, i int, mux sync.Mutex, c chan int) {         
+                for j:=winnersSizeMin;j<=populationSize;j++ {
+                    winners := TournamentRanking(population, fitness, true, i, j)
+                    if len(winners)!=j {
+                        mux.Lock()
+                        t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), j)
+                        mux.Unlock()
+                    }
+                    for k:=range(winners) {
+                        if winners[k]<0 || winners[k]>=populationSize {
+                            mux.Lock()
+                            t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[k], populationSize)
+                            mux.Unlock()
+                        }
+                    }
+                    for k:= range(winners) {
+                        if winners[k] > populationSize - i {
+                            mux.Lock()
+                            t.Errorf("The %d-th to last individual won a tournament of size %d, which should never happen (min fitness)\n", populationSize - winners[k], i)
+                            mux.Unlock()
+                        }
+                    }
+                    winners = TournamentRanking(population, fitness, false, i, j)
+                    if len(winners)!=j {
+                        mux.Lock()
+                        t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), j)
+                        mux.Unlock()
+                    }
+                    for k:= range(winners) {
+                        if winners[k] + 1 < i {
+                            mux.Lock()
+                            t.Errorf("The %d-th to last individual won a tournament of size %d, which should never happen (max fitness)\n", winners[k], i)
+                            mux.Unlock()
+                        }
+                    }
                 }
-            }
-            for j:= range(winners) {
-                if winners[j] > populationSize - i {
-                    t.Errorf("The %d-th to last individual won a tournament of size %d, which should never happen (min fitness)\n", populationSize - winners[j], i)
-                }
-            }
-            winners = TournamentRanking(population, fitness, false, i, j)
-            if len(winners)!=j {
-                t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), j)
-            }
-            for j:= range(winners) {
-                if winners[j] + 1 < i {
-                    t.Errorf("The %d-th to last individual won a tournament of size %d, which should never happen (max fitness)\n", winners[j], i)
-                }
-            }
+                c <- 1
+            }(populationSize, i, mux, c)
+        }
+        for i:=tournamentSizeMin;i<=populationSize;i++ {
+            <-c
         }
     }
 }
