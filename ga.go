@@ -103,7 +103,8 @@ func RouletteRanking(population [][]int, fitness []float64, minFitness float64, 
 //for the ranking selection functions. Exported because it might be useful to the calling program
 func CalculateRanks(fitness []float64, minOrMax bool) []int {
     individuals := len(fitness)
-    fitnessOrdered := fitness
+    fitnessOrdered := make([]float64, individuals)
+    copy(fitnessOrdered, fitness)
     sort.Float64s(fitnessOrdered)
     //ranksLooukup stores the index of the ranked individuals in the population array
     ranksLookup := make([]int, individuals)
