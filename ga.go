@@ -15,6 +15,8 @@ const (
 
 //We store tables of the probabilities for linear and exponential ranking, as they are always the same for a given k2/k1
 var (
+    linear_ranks_probabilities          [][]float64
+    linear_ranks_selection_pressure     [][]float64
     exponential_ranks_probabilities     [][]float64
     exponential_ranks_k1                [][]float64
 )
@@ -23,10 +25,13 @@ func init(){
     r.Seed(time.Now().UnixNano())
     //To speed up starting time we only allocate the first level of the array
     //and will allocate the second as necessary
+    linear_ranks_selection_pressure = make([][]float64, 2)
     exponential_ranks_k1            = make([][]float64, 2)
     for i:= range exponential_ranks_k1 {
+        linear_ranks_selection_pressure[i] = make([]float64, tracked_probabilities)
         exponential_ranks_k1[i]            = make([]float64, tracked_probabilities)
     }
+    linear_ranks_probabilities      = make([][]float64, tracked_probabilities)
     exponential_ranks_probabilities = make([][]float64, tracked_probabilities)
 }
 
@@ -139,6 +144,94 @@ func calculateLinearRankingProbabilities(selectionPressure float64, populationSi
 }
 
 
+//linearRankingProbabilitiesGenerator does the heavy-lifting of checking if we've already got the requested probabilities stored, 
+//stores them if we've got empty room for them left, and moves things around to keep the tables
+//organized by how much they've been used
+func linearRankingProbabilitiesGenerator(selectionPressure float64, populationSize int) []float64 {
+    index := -1
+    usage :=  1.
+    var temp_probabilities []float64
+    for i:= range linear_ranks_selection_pressure[0] {
+        //NOTE how the condition is different here compared to exponentialRankingProbabilitiesGenerator, because
+        //linearRanking changes its value not only based on selectionPressure, but also populationSize, so we need to check both
+        if linear_ranks_selection_pressure[0][i]==selectionPressure && len(linear_ranks_probabilities[i])==populationSize{
+            index = i
+            linear_ranks_selection_pressure[1][i]+=1
+            usage = linear_ranks_selection_pressure[1][i]
+            break
+        }
+    }
+    hasToSwap := false
+    if index>-1 {
+        //The selectionPressure is already at least tracked
+        if index < stored_probabilities {
+            //The selectionPressure is already stored, we check if it's long enough and if we need to sort the tables 
+            sorted := true
+            if index > 0 && linear_ranks_selection_pressure[1][index-1]<linear_ranks_selection_pressure[1][index] {
+                sorted = false
+            }
+            if sorted {
+                //No need to sort them, so we just return the correct table
+                return linear_ranks_probabilities[index]
+            } else {
+                //A sort is needed, we store the wanted table in temp_probabilities
+                temp_probabilities = linear_ranks_probabilities[index]
+                hasToSwap = true
+            }
+        } else {
+            //The selectionPressure is **not** stored, we need to generate it, we check if its usage has surpassed that
+            //of the lowest stored table, and check it for sorting if so
+            if usage > linear_ranks_selection_pressure[1][stored_probabilities] {
+                temp_probabilities = calculateLinearRankingProbabilities(selectionPressure, populationSize)
+                hasToSwap = true
+            } else {
+                return calculateLinearRankingProbabilities(selectionPressure, populationSize)
+            }
+        }
+    } else {
+        //The selectionPressure is not tracked, we check if there are empty tables to put it into, 
+        //otherwise we simply generate it and return it
+        index = tracked_probabilities
+        for i:= range linear_ranks_selection_pressure[1] {
+            //We find the last empty table, 
+            if linear_ranks_selection_pressure[1][i]==0. {
+                index = i
+                break
+            }
+        }
+        if index < tracked_probabilities {
+            //There's room to at least track it, we add the tracking information
+            linear_ranks_selection_pressure[0][index] = selectionPressure
+            linear_ranks_selection_pressure[1][index] = 1.
+            if index < stored_probabilities {
+                //There's also room to store it, we allocate memory and store the table after generating it
+                linear_ranks_probabilities[index] = make([]float64, populationSize)
+                linear_ranks_probabilities[index] = calculateLinearRankingProbabilities(selectionPressure, populationSize)
+                return linear_ranks_probabilities[index]
+            }
+            //No room to store it, we just return the table without storing it
+            return calculateLinearRankingProbabilities(selectionPressure, populationSize)
+        } else {
+            //No room to track it, we just return the table 
+            return calculateLinearRankingProbabilities(selectionPressure, populationSize)
+        }
+    }
+    //If we've identified that the tables need sorting, we keep swapping the table we will return with the one before it
+    //until sort.Float64sAreSorted(linear_ranks_selection_pressure[1]) will return true
+    for ;hasToSwap;index-- {
+        temp_pressure := linear_ranks_selection_pressure[0][index]
+        linear_ranks_selection_pressure[0][index] = linear_ranks_selection_pressure[0][index-1]
+        linear_ranks_selection_pressure[0][index-1] = temp_pressure
+        linear_ranks_selection_pressure[1][index] = linear_ranks_selection_pressure[1][index-1]  
+        linear_ranks_selection_pressure[1][index-1] = usage
+        linear_ranks_probabilities[index] = linear_ranks_probabilities[index-1]
+        linear_ranks_probabilities[index-1] = temp_probabilities
+        hasToSwap=!sort.Float64sAreSorted(linear_ranks_selection_pressure[1])
+    }
+    return temp_probabilities
+}
+
+
 //LinearRanking picks winners based on a roulette wheel whose sectors' width is based on the ranks of the individuals, 
 //with selectionPressure acting as a parameter to determine how much rank weighs.
 //Returns the **indexes** of the winners
@@ -154,7 +247,7 @@ func LinearRanking(population [][]int, fitness []float64, minOrMax bool, selecti
         log.Fatalf("The selection pressure must be within 1 and 2, got %f\n", selectionPressure)
     }
     ranksLookup := CalculateRanks(fitness, minOrMax)
-    cumulativeProbabilities := calculateLinearRankingProbabilities(selectionPressure, individuals)
+    cumulativeProbabilities := linearRankingProbabilitiesGenerator(selectionPressure, individuals)
     winners := make([]int, winnersSize)
     for i:= range winners {
         winners[i] = 
@@ -255,19 +348,25 @@ func exponentialRankingProbabilitiesGenerator(k1 float64, populationSize int) []
             }
         }
         if index < tracked_probabilities {
+            //There's room to at least track it, we add the tracking information
             exponential_ranks_k1[0][index] = k1 
             exponential_ranks_k1[1][index] = 1.
             if index < stored_probabilities {
+                //There's also room to store it, we allocate memory and store the table after generating it
                 exponential_ranks_probabilities[index] = make([]float64, populationSize)
                 exponential_ranks_probabilities[index] = calculateExponentialRankingProbabilities(k1, populationSize, 0, 0)
                 return exponential_ranks_probabilities[index]
             }
+            //No room to store it, we just return the table without storing it
             return calculateExponentialRankingProbabilities(k1, populationSize, 0, 0)
         } else {
+            //No room to track it, we just return the table 
             return calculateExponentialRankingProbabilities(k1, populationSize, 0, 0)
         }
     }
-    if hasToSwap {
+    //If we've identified that the tables need sorting, we keep swapping the table we will return with the one before it
+    //until sort.Float64sAreSorted(exponential_ranks_k1[1]) will return true
+    for ;hasToSwap;index-- {
         temp_pressure := exponential_ranks_k1[0][index]
         exponential_ranks_k1[0][index] = exponential_ranks_k1[0][index-1]
         exponential_ranks_k1[0][index-1] = temp_pressure
@@ -275,6 +374,7 @@ func exponentialRankingProbabilitiesGenerator(k1 float64, populationSize int) []
         exponential_ranks_k1[1][index-1] = usage
         exponential_ranks_probabilities[index] = exponential_ranks_probabilities[index-1]
         exponential_ranks_probabilities[index-1] = temp_probabilities
+        hasToSwap=!sort.Float64sAreSorted(linear_ranks_selection_pressure[1])
     }
     return temp_probabilities
 }
