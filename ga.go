@@ -118,7 +118,7 @@ func CalculateRanks(fitness []float64, minOrMax bool) []int {
         }
     } else {
         for i:= range ranksLookup {
-            ranksLookup[i] = individuals - 1 - inverseFitnessMap[fitnessOrdered[i]]
+            ranksLookup[individuals - 1 - i] = inverseFitnessMap[fitnessOrdered[i]]
         }
     }
     return ranksLookup
