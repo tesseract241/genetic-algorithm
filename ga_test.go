@@ -100,8 +100,20 @@ func TestLinearRanking(t *testing.T) {
     for populationSize:=populationSizeMin;populationSize<=populationSizeMax;populationSize++ {    
         population := GeneratePopulation(populationSize, genotypeTemplate)
         fitness := make([]float64, populationSize)
+        lowestFitness       := 1.
+        highestFitness      := 0.
+        lowestFitnessIndex  := 0
+        highestFitnessIndex := 0
         for i:= range(fitness) {
             fitness[i] = r.Float64()
+            if fitness[i] > highestFitness {
+                highestFitness = fitness[i]
+                highestFitnessIndex = i
+            }
+            if fitness[i] < lowestFitness {
+                lowestFitness = fitness[i]
+                lowestFitnessIndex = i
+            }
         }
         for i:=winnersSizeMin;i<=populationSize;i++ {
             for k := range selectionPressures {
@@ -113,8 +125,22 @@ func TestLinearRanking(t *testing.T) {
                         if winners[j]<0 || winners[j]>=populationSize {
                             t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[j], populationSize)
                         }
+                        if j == highestFitnessIndex {
+                            t.Error("The individual with the highest fitness won on a minimizing fitness, which should be impossible\n")
+                        }
                 }
-            }
+                winners = LinearRanking(population, fitness, false, selectionPressures[k], i)
+                if len(winners)!=i {
+                        t.Errorf("The total number of winners is different from requested, %d vs %d\n", len(winners), i)
+                }
+                for j:=range(winners) {
+                        if winners[j]<0 || winners[j]>=populationSize {
+                            t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[j], populationSize)
+                        }
+                        if j == lowestFitnessIndex {
+                            t.Error("The individual with the lowest fitness won on a maximizing fitness, which should be impossible\n")
+                        }
+                }}
         }
     }
 }
