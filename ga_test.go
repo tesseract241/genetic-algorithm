@@ -6,6 +6,7 @@ import (
     "sync"
     "sort"
     "testing"
+    "time"
 )
 
 const (
@@ -20,6 +21,10 @@ const (
     tournamentSizeMin   =  2
     winnersSizeMin      =  1
 )
+
+func init() {
+    r.Seed(time.Now().UnixNano())
+}
 
 func TestGeneratePopulation(t *testing.T) {
     log.Println("Testing GeneratePopulation")
@@ -125,8 +130,8 @@ func TestLinearRanking(t *testing.T) {
                         if winners[j]<0 || winners[j]>=populationSize {
                             t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[j], populationSize)
                         }
-                        if j == highestFitnessIndex {
-                            t.Error("The individual with the highest fitness won on a minimizing fitness, which should be impossible\n")
+                        if winners[j] == highestFitnessIndex {
+                            t.Errorf("The individual at index %d, with the highest fitness, won on a minimizing fitness, which should be impossible", winners[j])
                         }
                 }
                 winners = LinearRanking(population, fitness, false, selectionPressures[k], i)
@@ -137,8 +142,8 @@ func TestLinearRanking(t *testing.T) {
                         if winners[j]<0 || winners[j]>=populationSize {
                             t.Errorf("A winner is beyond the range of the population with index %d (population size was %d)\n", winners[j], populationSize)
                         }
-                        if j == lowestFitnessIndex {
-                            t.Error("The individual with the lowest fitness won on a maximizing fitness, which should be impossible\n")
+                        if winners[j] == lowestFitnessIndex {
+                            t.Errorf("The individual at index %d, with the lowest fitness, won on a maximizing fitness, which should be impossible", winners[j])
                         }
                 }}
         }
