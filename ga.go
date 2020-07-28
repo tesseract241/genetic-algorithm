@@ -110,7 +110,7 @@ func CalculateRanks(fitness []float64, minOrMax bool) []int {
     for i, fitness := range fitness {
         inverseFitnessMap[fitness] = i
     }
-    //ranksLooukup stores the index of the ranked individuals in the population array
+    //ranksLookup stores the index of the ranked individuals in the population array
     ranksLookup := make([]int, individuals)
     if minOrMax {
         for i:= range ranksLookup {
@@ -226,7 +226,7 @@ func linearRankingProbabilitiesGenerator(selectionPressure float64, populationSi
         linear_ranks_selection_pressure[1][index-1] = usage
         linear_ranks_probabilities[index] = linear_ranks_probabilities[index-1]
         linear_ranks_probabilities[index-1] = temp_probabilities
-        hasToSwap=!sort.Float64sAreSorted(linear_ranks_selection_pressure[1])
+        hasToSwap = index > 1 && linear_ranks_selection_pressure[1][index-2] < linear_ranks_selection_pressure[1][index-1]
     }
     return temp_probabilities
 }
@@ -374,7 +374,7 @@ func exponentialRankingProbabilitiesGenerator(k1 float64, populationSize int) []
         exponential_ranks_k1[1][index-1] = usage
         exponential_ranks_probabilities[index] = exponential_ranks_probabilities[index-1]
         exponential_ranks_probabilities[index-1] = temp_probabilities
-        hasToSwap=!sort.Float64sAreSorted(linear_ranks_selection_pressure[1])
+        hasToSwap = index > 1 && exponential_ranks_k1[1][index-2] < exponential_ranks_k1[1][index-1]
     }
     return temp_probabilities
 }
