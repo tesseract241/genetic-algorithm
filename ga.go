@@ -268,18 +268,12 @@ func calculateExponentialRankingProbabilities(k1 float64, populationSize int, st
     }
     cumulativeProbabilities := make([]float64, populationSize - startingIndex)
     if startingIndex != 0 {
-        cumulativeProbabilities[0] = startingValue
-        //We recreate the last element of the previous cumulativeProbabilities to avoid having two separate paths, 
-        //we'll drop it before returning the slice
+        cumulativeProbabilities[0] = startingValue + k1*math.Pow(1.-k1, float64(startingIndex+1))
     } else {
         cumulativeProbabilities[0] = k1
     }
     for i:=1;i<populationSize - startingIndex;i++ {
-        cumulativeProbabilities[i] = cumulativeProbabilities[i-1] + k1*math.Pow(1.-k1, float64(i+startingIndex)) 
-    }
-    if startingIndex != 0{
-        //Here we drop the recreated last element
-        return cumulativeProbabilities[1:]
+        cumulativeProbabilities[i] = cumulativeProbabilities[i-1] + k1*math.Pow(1.-k1, float64(i+startingIndex))
     }
     return cumulativeProbabilities
 }
