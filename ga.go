@@ -59,7 +59,7 @@ func GeneratePopulation(individuals int, genotypeTemplate [][]int) [][]int {
 }
 
 //RouletteRanking picks winners based on a roulette wheel whose sectors' width are proportional to the fitness of each individual.
-//If using a minimizing fitness, it needs the minimum fitness, otherwise give a negative number for minFitness
+//If using a minimizing fitness, it needs the minimum fitness, otherwise give a positive number for minFitness
 //Returns the indexes of the winners
 func RouletteRanking(population [][]int, fitness []float64, minFitness float64, winnersSize int) []int {
     individuals := len(population)
